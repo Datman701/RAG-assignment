@@ -18,7 +18,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 from document_loader import load_document
-from vectorstore import SentenceTransformerEmbeddings, create_chunks, create_vectorstore
+from vectorstore import OpenRouterEmbeddings, create_chunks, create_vectorstore
 
 logger = logging.getLogger(__name__)
 
@@ -49,10 +49,10 @@ class RAGPipeline:
 
         gemini_model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
         embedding_model = os.getenv(
-            "HF_EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2"
+            "EMBEDDING_MODEL", "openai/text-embedding-3-small"
         )
 
-        self.embeddings = SentenceTransformerEmbeddings(model_name=embedding_model)
+        self.embeddings = OpenRouterEmbeddings(model_name=embedding_model)
         self.llms = self._build_llm_chain(gemini_model)
 
         logger.info(

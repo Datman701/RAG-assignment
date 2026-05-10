@@ -5,18 +5,19 @@ Handles text chunking and ChromaDB vector store creation.
 
 Responsibilities:
     - Split LangChain Documents into fixed-size overlapping chunks.
-        - Embed chunks via a Hugging Face SentenceTransformer model.
+        - Embed chunks via OpenRouter API.
     - Persist chunks in an in-memory Chroma collection.
 """
 
 import logging
+import os
 from typing import List
 
+import openrouter
 from langchain_community.vectorstores import Chroma
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from sentence_transformers import SentenceTransformer
 
 logger = logging.getLogger(__name__)
 
@@ -26,39 +27,56 @@ logger = logging.getLogger(__name__)
 CHUNK_SIZE = 1000
 CHUNK_OVERLAP = 200
 EMBED_BATCH_SIZE = 20       # documents per embedding API call
-DEFAULT_EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+DEFAULT_EMBEDDING_MODEL = "openai/text-embedding-3-small"
 
 
 # ---------------------------------------------------------------------------
 # Embeddings adapter
 # ---------------------------------------------------------------------------
 
-class SentenceTransformerEmbeddings(Embeddings):
-    """LangChain embeddings wrapper around SentenceTransformer."""
+class OpenRouterEmbeddings(Embeddings):
+    """LangChain embeddings wrapper around OpenRouter API."""
 
-    def __init__(self, model_name: str = DEFAULT_EMBEDDING_MODEL) -> None:
+    def __init__(self, model_name: str = DEFAULT_EMBEDDING_MODEL, api_key: str = None) -> None:
         self.model_name = model_name
-        self.model = SentenceTransformer(model_name)
-        logger.info("Loaded SentenceTransformer model '%s'", model_name)
+        self.api_key = api_key or os.getenv("OPENROUTER_API_KEY")
+        if not self.api_key:
+            raise ValueError(
+                "OPENROUTER_API_KEY is not set. Configure it in environment variables."
+            )
+        self.client = openrouter.OpenRouter(api_key=self.api_key)
+        logger.info("Initialized OpenRouter embeddings with model '%s'", model_name)
 
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
         if not texts:
             return []
 
-        embeddings = self.model.encode(
-            texts,
-            show_progress_bar=False,
-            normalize_embeddings=True,
-        )
-        return embeddings.tolist()
+        embeddings = []
+        for text in texts:
+            try:
+                response = self.client.embeddings.generate(
+                    model=self.model_name,
+                    input=text,
+                )
+                embedding = response.data[0].embedding
+                embeddings.append(embedding)
+            except Exception as exc:
+                logger.error("Failed to embed text: %s", exc)
+                raise ValueError(f"Error embedding text: {exc}") from exc
+
+        return embeddings
 
     def embed_query(self, text: str) -> List[float]:
-        embedding = self.model.encode(
-            [text],
-            show_progress_bar=False,
-            normalize_embeddings=True,
-        )
-        return embedding[0].tolist()
+        try:
+            response = self.client.embeddings.generate(
+                model=self.model_name,
+                input=text,
+            )
+            embedding = response.data[0].embedding
+            return embedding
+        except Exception as exc:
+            logger.error("Failed to embed query: %s", exc)
+            raise ValueError(f"Error embedding query: {exc}") from exc
 
 
 # ---------------------------------------------------------------------------

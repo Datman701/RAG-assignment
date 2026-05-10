@@ -11,8 +11,11 @@ services:
         sync: false
       - key: GEMINI_MODEL
         value: gemini-2.5-flash
-      - key: HF_EMBEDDING_MODEL
-        value: sentence-transformers/all-MiniLM-L6-v2
+      - key: OPENROUTER_API_KEY
+        scope: shared
+        sync: false
+      - key: EMBEDDING_MODEL
+        value: openai/text-embedding-3-small
       - key: PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION
         value: python
       - key: PYTHON_VERSION
