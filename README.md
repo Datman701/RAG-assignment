@@ -1,4 +1,4 @@
-# Document Q&A: RAG-Powered Web Application
+# RAG-Powered Web Application
 
 A production-ready document question-answering web app powered by LangChain, Gemini, Hugging Face embeddings, and ChromaDB. Upload a PDF, TXT, or CSV file, ask natural language questions, and receive answers grounded exclusively in your document.
 
