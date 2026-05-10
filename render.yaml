@@ -2,7 +2,7 @@ services:
   - type: web
     name: rag-qa-api
     runtime: python
-    pythonVersion: 3.11
+    pythonVersion: 3.11.9
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
@@ -15,6 +15,8 @@ services:
         value: sentence-transformers/all-MiniLM-L6-v2
       - key: PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION
         value: python
+      - key: PYTHON_VERSION
+        value: 3.11.9
       - key: LOG_LEVEL
         value: INFO
     memoryMB: 512
