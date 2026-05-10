@@ -41,6 +41,12 @@ class RAGPipeline:
 
     def __init__(self) -> None:
         """Initialise local embeddings and the Gemini LLM from environment variables."""
+        gemini_api_key = os.getenv("GEMINI_API_KEY")
+        if not gemini_api_key:
+            raise ValueError(
+                "GEMINI_API_KEY is not set. Configure it in Render environment variables."
+            )
+
         gemini_model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
         embedding_model = os.getenv(
             "HF_EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2"

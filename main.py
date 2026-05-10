@@ -119,9 +119,11 @@ class SessionMetadata(BaseModel):
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
+    gemini_configured = bool(os.getenv("GEMINI_API_KEY"))
     return {
         "status": "healthy",
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.utcnow().isoformat(),
+        "gemini_api_key_configured": gemini_configured,
     }
 
 
@@ -218,7 +220,7 @@ async def upload_document(file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Error during file upload: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error processing document")
+        raise HTTPException(status_code=500, detail=f"Error processing document: {e}")
 
 
 @app.post("/ask", response_model=AskResponse)
@@ -268,9 +270,12 @@ async def ask_question(request: AskRequest):
 
     except HTTPException:
         raise
+    except ValueError as e:
+        logger.warning(f"Validation error during question answering: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Error during question answering: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error generating answer")
+        raise HTTPException(status_code=500, detail=f"Error generating answer: {e}")
 
 
 @app.get("/sessions/{session_id}", response_model=SessionMetadata)
