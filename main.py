@@ -53,13 +53,27 @@ ALLOWED_EXTENSIONS = {".pdf", ".txt", ".csv"}
 # In-memory session storage
 sessions: Dict[str, Dict[str, Any]] = {}
 
-# Initialize RAG pipeline
-try:
-    rag_pipeline = RAGPipeline()
-    logger.info("RAG pipeline initialized successfully")
-except Exception as e:
-    logger.error(f"Failed to initialize RAG pipeline: {e}")
-    raise
+# Lazy RAG pipeline initialization to avoid crashing on import/startup
+rag_pipeline = None
+
+
+def get_rag_pipeline() -> RAGPipeline:
+    """Return a singleton RAGPipeline, initializing on first use.
+
+    Initializing at import time can cause the app to exit during startup
+    (for example if required environment variables like `GEMINI_API_KEY`
+    are missing). This defers initialization until the first request that
+    needs the pipeline, making deployment logs easier to debug.
+    """
+    global rag_pipeline
+    if rag_pipeline is None:
+        try:
+            rag_pipeline = RAGPipeline()
+            logger.info("RAG pipeline initialized successfully")
+        except Exception as e:
+            logger.error("Failed to initialize RAG pipeline: %s", e, exc_info=True)
+            raise
+    return rag_pipeline
 
 
 # ============================================================================
@@ -166,8 +180,10 @@ async def upload_document(file: UploadFile = File(...)):
             session_id = str(uuid.uuid4())
             collection_name = f"doc_{session_id.replace('-', '')}"
 
-            # Process document through RAG pipeline
-            vectorstore, metadata = rag_pipeline.process_document(tmp_path, file_type, collection_name=collection_name)
+            # Process document through RAG pipeline (initialize lazily)
+            vectorstore, metadata = get_rag_pipeline().process_document(
+                tmp_path, file_type, collection_name=collection_name
+            )
 
             # Store vectorstore and metadata
             sessions[session_id] = {
@@ -237,8 +253,8 @@ async def ask_question(request: AskRequest):
         session = sessions[request.session_id]
         vectorstore = session["vectorstore"]
 
-        # Generate answer
-        result = rag_pipeline.answer_question(vectorstore, question)
+        # Generate answer (ensure pipeline is initialized)
+        result = get_rag_pipeline().answer_question(vectorstore, question)
 
         logger.info(f"Question answered. Session: {request.session_id}, Sources: {len(result['sources'])}")
 
