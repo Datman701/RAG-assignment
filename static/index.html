@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document Q&A — RAG Research Assistant</title>
+    <meta name="description" content="Upload PDF, TXT or CSV documents and ask questions powered by RAG and Google Gemini AI.">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark-dimmed.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box;font-family:'Inter',system-ui,sans-serif}
+
+        :root{
+            --bg-base:#0b0d13;
+            --bg-surface:#12141c;
+            --bg-elevated:#1a1d28;
+            --bg-hover:#222534;
+            --border:#ffffff0a;
+            --border-subtle:#ffffff14;
+            --text:#e8eaed;
+            --text-secondary:#9aa0ab;
+            --text-muted:#5f6672;
+            --accent:#6c5ce7;
+            --accent-hover:#7c6ff0;
+            --accent-glow:rgba(108,92,231,.25);
+            --accent-subtle:rgba(108,92,231,.12);
+            --success:#00cec9;
+            --danger:#ff6b6b;
+            --warning:#feca57;
+            --glass:rgba(18,20,28,.75);
+            --glass-border:rgba(255,255,255,.06);
+            --radius:14px;
+            --radius-sm:10px;
+            --radius-xs:6px;
+            --shadow:0 4px 24px rgba(0,0,0,.4);
+        }
+
+        body{background:var(--bg-base);color:var(--text);height:100vh;overflow:hidden;display:flex;flex-direction:column}
+
+        /* Animated gradient orbs in background */
+        body::before,body::after{content:'';position:fixed;border-radius:50%;filter:blur(120px);opacity:.12;pointer-events:none;z-index:0}
+        body::before{width:600px;height:600px;background:#6c5ce7;top:-200px;right:-100px;animation:drift 20s ease-in-out infinite alternate}
+        body::after{width:500px;height:500px;background:#00cec9;bottom:-200px;left:-100px;animation:drift 25s ease-in-out infinite alternate-reverse}
+        @keyframes drift{0%{transform:translate(0,0)}100%{transform:translate(60px,40px)}}
+
+        .glass{background:var(--glass);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid var(--glass-border);border-radius:var(--radius);box-shadow:var(--shadow)}
+
+        /* === HEADER === */
+        header{padding:14px 24px;display:flex;justify-content:space-between;align-items:center;margin:12px 12px 0;position:relative;z-index:2}
+        .logo{display:flex;align-items:center;gap:10px}
+        .logo-icon{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--accent),#a29bfe);display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 0 20px var(--accent-glow)}
+        h1{font-size:18px;font-weight:600;letter-spacing:-.3px}
+        h1 span{color:var(--text-secondary);font-weight:400;font-size:13px;margin-left:6px}
+
+        .header-actions{display:flex;gap:8px}
+
+        /* === BUTTONS === */
+        button{padding:9px 16px;border:none;border-radius:var(--radius-xs);cursor:pointer;font-size:13px;font-weight:500;transition:all .2s ease;font-family:inherit;display:inline-flex;align-items:center;gap:6px}
+        .btn-primary{background:var(--accent);color:#fff;box-shadow:0 2px 12px var(--accent-glow)}
+        .btn-primary:hover:not(:disabled){background:var(--accent-hover);transform:translateY(-1px);box-shadow:0 4px 20px var(--accent-glow)}
+        .btn-primary:disabled{opacity:.4;cursor:not-allowed;transform:none}
+        .btn-ghost{background:var(--bg-hover);color:var(--text-secondary);border:1px solid var(--border-subtle)}
+        .btn-ghost:hover:not(:disabled){background:var(--bg-elevated);color:var(--text)}
+        .btn-ghost:disabled{opacity:.35;cursor:not-allowed}
+        .btn-danger{background:rgba(255,107,107,.12);color:var(--danger);border:1px solid rgba(255,107,107,.15)}
+        .btn-danger:hover{background:rgba(255,107,107,.2)}
+
+        /* === LAYOUT === */
+        .container{display:flex;flex:1;padding:12px;gap:12px;overflow:hidden;position:relative;z-index:1}
+        .sidebar{width:300px;padding:20px;display:flex;flex-direction:column;gap:20px;overflow-y:auto}
+        .main-area{flex:1;display:flex;flex-direction:column;overflow:hidden}
+
+        /* === SIDEBAR === */
+        .section-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:12px}
+
+        .upload-zone{border:2px dashed var(--border-subtle);border-radius:var(--radius-sm);padding:28px 16px;text-align:center;cursor:pointer;transition:all .3s ease;position:relative}
+        .upload-zone:hover,.upload-zone.drag-over{border-color:var(--accent);background:var(--accent-subtle)}
+        .upload-zone input{display:none}
+        .upload-zone-icon{font-size:32px;margin-bottom:10px;display:block;transition:transform .3s}
+        .upload-zone:hover .upload-zone-icon{transform:translateY(-4px)}
+        .upload-zone-text{font-size:13px;color:var(--text-secondary);line-height:1.6}
+        .upload-zone-text strong{color:var(--text)}
+        .upload-zone-hint{font-size:11px;color:var(--text-muted);margin-top:4px}
+
+        .progress-track{width:100%;height:4px;background:var(--bg-hover);border-radius:2px;overflow:hidden;margin-top:12px}
+        .progress-bar{height:100%;background:linear-gradient(90deg,var(--accent),#a29bfe);width:0%;transition:width .4s ease;border-radius:2px}
+
+        .doc-card{background:var(--bg-elevated);border-radius:var(--radius-sm);padding:14px;border:1px solid var(--border-subtle)}
+        .doc-row{display:flex;justify-content:space-between;align-items:center;font-size:12px;padding:5px 0}
+        .doc-row:not(:last-child){border-bottom:1px solid var(--border)}
+        .doc-label{color:var(--text-muted);font-weight:500}
+        .doc-value{color:var(--text);font-weight:600;max-width:55%;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .doc-type-badge{display:inline-block;font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px;background:var(--accent-subtle);color:var(--accent);text-transform:uppercase;letter-spacing:.5px}
+
+        /* === CHAT === */
+        .chat-wrap{display:flex;flex-direction:column;flex:1;overflow:hidden}
+        .chat-messages{flex:1;overflow-y:auto;padding:24px;display:flex;flex-direction:column;gap:16px;scroll-behavior:smooth}
+
+        ::-webkit-scrollbar{width:5px}
+        ::-webkit-scrollbar-track{background:transparent}
+        ::-webkit-scrollbar-thumb{background:var(--border-subtle);border-radius:10px}
+        ::-webkit-scrollbar-thumb:hover{background:var(--text-muted)}
+
+        .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;text-align:center;gap:12px}
+        .empty-icon{font-size:48px;opacity:.7}
+        .empty-title{font-size:16px;font-weight:600;color:var(--text)}
+        .empty-sub{font-size:13px;color:var(--text-muted);max-width:300px;line-height:1.6}
+        .empty-chips{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;justify-content:center}
+        .chip{font-size:11px;padding:6px 14px;border-radius:20px;background:var(--bg-elevated);border:1px solid var(--border-subtle);color:var(--text-secondary)}
+
+        .msg{display:flex;flex-direction:column;animation:msgIn .35s cubic-bezier(.25,.8,.25,1)}
+        @keyframes msgIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+
+        .msg-user{align-self:flex-end;max-width:72%}
+        .msg-ai{align-self:flex-start;max-width:82%}
+
+        .msg-bubble{padding:12px 16px;border-radius:16px;font-size:14px;line-height:1.65}
+        .msg-user .msg-bubble{background:var(--accent);color:#fff;border-bottom-right-radius:4px}
+        .msg-ai .msg-bubble{background:var(--bg-elevated);border:1px solid var(--border-subtle);border-bottom-left-radius:4px}
+
+        .msg-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--text-muted);margin-bottom:4px;padding:0 4px}
+        .msg-user .msg-label{text-align:right}
+
+        /* Markdown inside AI messages */
+        .msg-bubble p{margin-bottom:8px}.msg-bubble p:last-child{margin-bottom:0}
+        .msg-bubble code{background:rgba(255,255,255,.08);padding:2px 5px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:.85em}
+        .msg-bubble pre{background:#161b22!important;padding:12px;border-radius:8px;overflow-x:auto;margin:8px 0;border:1px solid var(--border-subtle)}
+        .msg-bubble pre code{background:transparent;padding:0;color:#c9d1d9}
+        .msg-bubble ul,.msg-bubble ol{margin-left:18px;margin-bottom:8px}
+        .msg-bubble strong{color:#fff}
+        .msg-ai .msg-bubble strong{color:var(--accent-hover)}
+        .msg-bubble blockquote{border-left:3px solid var(--accent);padding-left:12px;margin:8px 0;color:var(--text-secondary)}
+        .msg-bubble table{width:100%;border-collapse:collapse;margin:8px 0;font-size:12px}
+        .msg-bubble th,.msg-bubble td{padding:6px 10px;border:1px solid var(--border-subtle);text-align:left}
+        .msg-bubble th{background:var(--bg-hover);font-weight:600}
+
+        .sources-toggle{font-size:11px;color:var(--accent);cursor:pointer;margin-top:10px;display:inline-flex;align-items:center;gap:4px;font-weight:500;transition:color .2s}
+        .sources-toggle:hover{color:var(--accent-hover)}
+        .sources-wrap{margin-top:10px;border-top:1px solid var(--border);padding-top:10px}
+        .source-chip{background:var(--bg-hover);padding:8px 12px;border-radius:var(--radius-xs);margin-bottom:6px;font-size:11px;line-height:1.5;border-left:3px solid var(--accent)}
+        .source-meta{color:var(--text-muted);font-size:10px;margin-top:4px;font-weight:600}
+
+        /* Typing dots */
+        .typing{display:flex;gap:4px;padding:4px;align-items:center;height:22px}
+        .dot{width:7px;height:7px;background:var(--accent);border-radius:50%;animation:pulse 1.4s infinite ease-in-out both}
+        .dot:nth-child(1){animation-delay:-.32s}.dot:nth-child(2){animation-delay:-.16s}
+        @keyframes pulse{0%,80%,100%{transform:scale(0);opacity:.4}40%{transform:scale(1);opacity:1}}
+
+        /* === INPUT === */
+        .input-bar{padding:16px 20px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:8px}
+        .input-top{display:flex;justify-content:flex-end;gap:6px}
+        .input-row{display:flex;gap:10px;align-items:flex-end}
+        textarea{flex:1;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);padding:12px 14px;font-size:14px;resize:none;color:var(--text);outline:none;transition:all .2s;font-family:inherit;line-height:1.5}
+        textarea::placeholder{color:var(--text-muted)}
+        textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+        textarea:disabled{opacity:.4}
+
+        /* === TOAST === */
+        .toast{position:fixed;bottom:24px;right:24px;padding:12px 20px;background:var(--bg-elevated);border:1px solid var(--border-subtle);color:var(--text);border-radius:var(--radius-sm);box-shadow:0 8px 32px rgba(0,0,0,.5);border-left:4px solid var(--accent);animation:toastIn .35s cubic-bezier(.175,.885,.32,1.275);z-index:1000;font-size:13px;max-width:360px}
+        .toast.error{border-left-color:var(--danger)}.toast.success{border-left-color:var(--success)}.toast.warning{border-left-color:var(--warning)}
+        @keyframes toastIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+        @keyframes toastOut{from{transform:translateX(0);opacity:1}to{transform:translateX(100%);opacity:0}}
+
+        /* Responsive */
+        @media(max-width:768px){
+            .container{flex-direction:column}
+            .sidebar{width:100%;max-height:200px;overflow-y:auto}
+        }
+    </style>
+</head>
+<body>
+    <header class="glass">
+        <div class="logo">
+            <div class="logo-icon">⚡</div>
+            <h1>RAG Assistant <span>by Gemini</span></h1>
+        </div>
+        <div class="header-actions">
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="sidebar glass">
+            <div>
+                <div class="section-label">Upload Document</div>
+                <div class="upload-zone" id="upload-area">
+                    <span class="upload-zone-icon">📂</span>
+                    <div class="upload-zone-text"><strong>Drag & drop</strong> or click to browse</div>
+                    <div class="upload-zone-hint">PDF, TXT, CSV — up to 10 MB</div>
+                    <input type="file" id="file-input" accept=".pdf,.txt,.csv">
+                </div>
+                <div id="upload-progress" style="display:none">
+                    <div style="font-size:11px;color:var(--text-secondary);margin-top:10px">Processing document…</div>
+                    <div class="progress-track"><div class="progress-bar" id="progress-fill"></div></div>
+                </div>
+            </div>
+
+            <div id="doc-info" style="display:none">
+                <div class="section-label">Active Document</div>
+                <div class="doc-card">
+                    <div class="doc-row"><span class="doc-label">File</span><span class="doc-value" id="doc-name">—</span></div>
+                    <div class="doc-row"><span class="doc-label">Type</span><span id="doc-type">—</span></div>
+                    <div class="doc-row"><span class="doc-label">Chunks</span><span class="doc-value" id="doc-chunks">—</span></div>
+                    <div class="doc-row"><span class="doc-label">Loaded</span><span class="doc-value" id="doc-time">—</span></div>
+                </div>
+                <button class="btn-danger" id="close-doc-btn" style="width:100%;margin-top:10px;justify-content:center">✕ Close Document</button>
+            </div>
+        </div>
+
+        <div class="main-area glass">
+            <div class="chat-wrap">
+                <div class="chat-messages" id="chat-messages">
+                    <div class="empty-state">
+                        <div class="empty-icon">🔍</div>
+                        <div class="empty-title">AI Research Assistant</div>
+                        <div class="empty-sub">Upload a PDF, TXT, or CSV file to start asking questions grounded in your document.</div>
+                        <div class="empty-chips">
+                            <div class="chip">📄 PDF</div>
+                            <div class="chip">📝 TXT</div>
+                            <div class="chip">📊 CSV</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="input-bar">
+                    <div class="input-top" id="input-top" style="display:none">
+                        <button class="btn-ghost" id="clear-chat-btn" style="font-size:11px;padding:5px 10px">🗑 Clear chat</button>
+                    </div>
+                    <div class="input-row">
+                        <textarea id="q-input" placeholder="Ask about your document… (Enter to send)" rows="2" disabled></textarea>
+                        <button class="btn-primary" id="send-btn" disabled style="min-width:72px;height:48px;border-radius:var(--radius-sm)">Send</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+marked.setOptions({
+    highlight:(code,lang)=>{
+        if(lang&&hljs.getLanguage(lang)) return hljs.highlight(code,{language:lang}).value;
+        return hljs.highlightAuto(code).value;
+    },
+    breaks:true
+});
+
+const S={sessionId:null,history:[],loading:false};
+const $=id=>document.getElementById(id);
+
+const el={
+    uploadArea:$('upload-area'),fileInput:$('file-input'),progress:$('upload-progress'),
+    progressFill:$('progress-fill'),docInfo:$('doc-info'),docName:$('doc-name'),
+    docType:$('doc-type'),docChunks:$('doc-chunks'),docTime:$('doc-time'),
+    closeBtn:$('close-doc-btn'),chat:$('chat-messages'),qInput:$('q-input'),
+    sendBtn:$('send-btn'),clearBtn:$('clear-chat-btn'),
+    inputTop:$('input-top')
+};
+
+function init(){
+    const saved=localStorage.getItem('sessionId');
+    if(saved) validateSession(saved);
+    bind();
+}
+
+function bind(){
+    el.uploadArea.addEventListener('click',e=>{if(e.target!==el.fileInput)el.fileInput.click()});
+    el.fileInput.addEventListener('change',onFile);
+    el.uploadArea.addEventListener('dragover',e=>{e.preventDefault();el.uploadArea.classList.add('drag-over')});
+    el.uploadArea.addEventListener('dragleave',()=>el.uploadArea.classList.remove('drag-over'));
+    el.uploadArea.addEventListener('drop',e=>{e.preventDefault();el.uploadArea.classList.remove('drag-over');if(e.dataTransfer.files.length){el.fileInput.files=e.dataTransfer.files;onFile()}});
+    el.sendBtn.addEventListener('click',ask);
+    el.qInput.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();if(!S.loading)ask()}});
+    el.closeBtn.addEventListener('click',()=>{if(confirm('Close this document?'))clearSession()});
+    el.clearBtn.addEventListener('click',clearChat);
+}
+
+function onFile(){
+    const f=el.fileInput.files[0];if(!f)return;
+    const ext=f.name.split('.').pop().toLowerCase();
+    if(!['pdf','txt','csv'].includes(ext))return toast('Only PDF, TXT, and CSV files are supported','error');
+    if(f.size>10*1024*1024)return toast('File exceeds 10 MB limit','error');
+    upload(f);
+}
+
+async function upload(file){
+    const fd=new FormData();fd.append('file',file);
+    el.progress.style.display='block';el.progressFill.style.width='40%';
+    try{
+        const r=await fetch('/upload',{method:'POST',body:fd});
+        if(!r.ok)throw new Error((await r.json()).detail||'Upload failed');
+        const d=await r.json();
+        el.progressFill.style.width='100%';
+        setTimeout(()=>{
+            S.sessionId=d.session_id;localStorage.setItem('sessionId',d.session_id);
+            showDoc(d);clearChat();enableChat();
+            el.uploadArea.style.display='none';
+            toast('Document processed — ready for questions!','success');
+            el.progress.style.display='none';el.progressFill.style.width='0%';
+        },500);
+    }catch(e){toast(e.message,'error');el.progress.style.display='none';el.progressFill.style.width='0%'}
+    el.fileInput.value='';
+}
+
+function showDoc(d){
+    el.docName.textContent=d.file_name;el.docName.title=d.file_name;
+    const ext=(d.file_name||'').split('.').pop().toUpperCase();
+    el.docType.innerHTML=`<span class="doc-type-badge">${d.file_type||ext}</span>`;
+    el.docChunks.textContent=d.chunk_count;
+    el.docTime.textContent=new Date().toLocaleTimeString();
+    el.docInfo.style.display='block';
+}
+
+async function validateSession(id){
+    try{
+        const r=await fetch(`/sessions/${id}`);
+        if(r.ok){const d=await r.json();S.sessionId=id;showDoc(d);enableChat()}
+        else clearSession();
+    }catch{clearSession()}
+}
+
+function clearSession(){S.sessionId=null;localStorage.removeItem('sessionId');el.docInfo.style.display='none';el.uploadArea.style.display='block';disableChat();clearChat()}
+function enableChat(){el.sendBtn.disabled=false;el.qInput.disabled=false;el.inputTop.style.display='flex'}
+function disableChat(){el.sendBtn.disabled=true;el.qInput.disabled=true;el.inputTop.style.display='none'}
+
+function clearChat(){
+    S.history=[];
+    el.chat.innerHTML=`<div class="empty-state">
+        <div class="empty-icon">${S.sessionId?'💡':'🔍'}</div>
+        <div class="empty-title">${S.sessionId?'Ask me anything about this document':'AI Research Assistant'}</div>
+        <div class="empty-sub">${S.sessionId?'Type a question below to get started.':'Upload a PDF, TXT, or CSV file to start asking questions.'}</div>
+    </div>`;
+}
+
+function scroll(){el.chat.scrollTo({top:el.chat.scrollHeight,behavior:'smooth'})}
+
+async function ask(){
+    const q=el.qInput.value.trim();if(!q)return;
+    if(el.chat.querySelector('.empty-state'))el.chat.innerHTML='';
+    el.chat.appendChild(msgEl('user',q));el.qInput.value='';S.loading=true;el.sendBtn.disabled=true;scroll();
+
+    const ai=msgEl('ai',`<div class="typing"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>`);
+    el.chat.appendChild(ai);scroll();
+
+    try{
+        const r=await fetch('/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_id:S.sessionId,question:q})});
+        if(!r.ok)throw new Error((await r.json()).detail||'Failed');
+        const d=await r.json();
+        const bubble=ai.querySelector('.msg-bubble');
+        bubble.innerHTML=marked.parse(d.answer);
+        if(d.sources&&d.sources.length)bubble.appendChild(sourcesEl(d.sources));
+        S.history.push({question:q,answer:d.answer,sources:d.sources});scroll();
+    }catch(e){ai.remove();toast(e.message,'error')}
+    finally{S.loading=false;el.sendBtn.disabled=false;el.qInput.focus()}
+}
+
+function msgEl(type,content){
+    const d=document.createElement('div');
+    d.className=`msg msg-${type==='user'?'user':'ai'}`;
+    d.innerHTML=`<div class="msg-label">${type==='user'?'You':'AI Assistant'}</div><div class="msg-bubble">${content}</div>`;
+    return d;
+}
+
+function sourcesEl(sources){
+    const wrap=document.createElement('div');wrap.className='sources-wrap';
+    const toggle=document.createElement('div');toggle.className='sources-toggle';
+    toggle.innerHTML=`📑 View ${sources.length} source(s)`;
+    const list=document.createElement('div');list.style.display='none';
+
+    toggle.onclick=()=>{const h=list.style.display==='none';list.style.display=h?'block':'none';toggle.innerHTML=`📑 ${h?'Hide':'View'} ${sources.length} source(s)`};
+
+    sources.forEach((s,i)=>{
+        const c=document.createElement('div');c.className='source-chip';
+        const text=s.text.length>200?s.text.substring(0,200)+'…':s.text;
+        let meta=`Source: ${s.metadata.source}`;
+        if(s.metadata.page)meta+=` | Page ${s.metadata.page}`;
+        if(s.metadata.row)meta+=` | Row ${s.metadata.row}`;
+        if(s.metadata.chunk_index!==undefined)meta+=` | Chunk ${s.metadata.chunk_index}`;
+        c.innerHTML=`<div>${text}</div><div class="source-meta">${meta}</div>`;
+        list.appendChild(c);
+    });
+
+    wrap.appendChild(toggle);wrap.appendChild(list);return wrap;
+}
+
+
+
+function toast(msg,type='info'){
+    const t=document.createElement('div');t.className=`toast ${type}`;t.textContent=msg;
+    document.body.appendChild(t);
+    setTimeout(()=>{t.style.animation='toastOut .35s ease forwards';setTimeout(()=>t.remove(),350)},3500);
+}
+
+init();
+</script>
+</body>
+</html>
