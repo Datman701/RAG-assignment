@@ -47,6 +47,7 @@ class RAGPipeline:
                 "GEMINI_API_KEY is not set. Configure it in Render environment variables."
             )
 
+        self.gemini_api_key = gemini_api_key
         gemini_model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
         embedding_model = os.getenv(
             "EMBEDDING_MODEL", "openai/text-embedding-3-small"
@@ -70,7 +71,14 @@ class RAGPipeline:
 
         llms: List[Tuple[str, ChatGoogleGenerativeAI]] = []
         for model_name in model_names:
-            llms.append((model_name, ChatGoogleGenerativeAI(model=model_name, temperature=0)))
+            llms.append((
+                model_name,
+                ChatGoogleGenerativeAI(
+                    model=model_name,
+                    temperature=0,
+                    google_api_key=self.gemini_api_key
+                )
+            ))
 
         return llms
 
