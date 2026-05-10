@@ -73,7 +73,7 @@ class RAGPipeline:
         for model_name in model_names:
             llms.append((
                 model_name,
-                ChatGoogleGenerativeAI(
+                ChatGoogleGenerativeAI(  # type: ignore
                     model=model_name,
                     temperature=0,
                     google_api_key=self.gemini_api_key

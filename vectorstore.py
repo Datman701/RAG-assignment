@@ -11,7 +11,7 @@ Responsibilities:
 
 import logging
 import os
-from typing import List
+from typing import Any, List, cast
 
 import openrouter
 from langchain_community.vectorstores import Chroma
@@ -54,12 +54,26 @@ class OpenRouterEmbeddings(Embeddings):
         embeddings = []
         for text in texts:
             try:
-                response = self.client.embeddings.generate(
+                response: Any = self.client.embeddings.generate(
                     model=self.model_name,
                     input=text,
                 )
-                embedding = response.data[0].embedding
-                embeddings.append(embedding)
+
+                # Support both mapping-style and attribute-style responses
+                if isinstance(response, dict):
+                    embedding_raw = response.get("data", [None])[0]
+                    embedding = embedding_raw.get("embedding") if embedding_raw else None
+                else:
+                    first = getattr(response, "data", None)
+                    if isinstance(first, (list, tuple)) and len(first) > 0:
+                        embedding = getattr(first[0], "embedding", None)
+                    else:
+                        embedding = None
+
+                if embedding is None:
+                    raise ValueError("No embedding returned from OpenRouter")
+
+                embeddings.append(cast(List[float], embedding))
             except Exception as exc:
                 logger.error("Failed to embed text: %s", exc)
                 raise ValueError(f"Error embedding text: {exc}") from exc
@@ -68,12 +82,25 @@ class OpenRouterEmbeddings(Embeddings):
 
     def embed_query(self, text: str) -> List[float]:
         try:
-            response = self.client.embeddings.generate(
+            response: Any = self.client.embeddings.generate(
                 model=self.model_name,
                 input=text,
             )
-            embedding = response.data[0].embedding
-            return embedding
+
+            if isinstance(response, dict):
+                embedding_raw = response.get("data", [None])[0]
+                embedding = embedding_raw.get("embedding") if embedding_raw else None
+            else:
+                first = getattr(response, "data", None)
+                if isinstance(first, (list, tuple)) and len(first) > 0:
+                    embedding = getattr(first[0], "embedding", None)
+                else:
+                    embedding = None
+
+            if embedding is None:
+                raise ValueError("No embedding returned from OpenRouter")
+
+            return cast(List[float], embedding)
         except Exception as exc:
             logger.error("Failed to embed query: %s", exc)
             raise ValueError(f"Error embedding query: {exc}") from exc
