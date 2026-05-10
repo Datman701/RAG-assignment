@@ -8,7 +8,7 @@ import logging
 import os
 import uuid
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any, Dict, TYPE_CHECKING
 from pathlib import Path
 import tempfile
 
@@ -18,7 +18,8 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from rag_pipeline import RAGPipeline
+if TYPE_CHECKING:
+    from rag_pipeline import RAGPipeline
 
 # Load environment variables from .env file
 load_dotenv()
@@ -57,7 +58,7 @@ sessions: Dict[str, Dict[str, Any]] = {}
 rag_pipeline = None
 
 
-def get_rag_pipeline() -> RAGPipeline:
+def get_rag_pipeline():
     """Return a singleton RAGPipeline, initializing on first use.
 
     Initializing at import time can cause the app to exit during startup
@@ -68,6 +69,8 @@ def get_rag_pipeline() -> RAGPipeline:
     global rag_pipeline
     if rag_pipeline is None:
         try:
+            from rag_pipeline import RAGPipeline
+
             rag_pipeline = RAGPipeline()
             logger.info("RAG pipeline initialized successfully")
         except Exception as e:
