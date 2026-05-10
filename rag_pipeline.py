@@ -76,7 +76,8 @@ class RAGPipeline:
                 ChatGoogleGenerativeAI(  # type: ignore
                     model=model_name,
                     temperature=0,
-                    google_api_key=self.gemini_api_key
+                    google_api_key=self.gemini_api_key,
+                    convert_system_message_to_human=True,
                 )
             ))
 
